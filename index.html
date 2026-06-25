@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OMNIFRAME</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+    canvas { display: block; position: fixed; top: 0; left: 0; }
+    #ui {
+      position: fixed; bottom: 0; left: 0; width: 100%; z-index: 10;
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 7px; padding: 12px 10px 20px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.92));
+    }
+    .sb {
+      background: rgba(0,255,102,0.06);
+      border: 1px solid rgba(0,255,102,0.45);
+      color: #00ff66;
+      padding: 9px 14px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px; letter-spacing: 0.06em;
+      cursor: pointer; border-radius: 2px;
+      transition: background 0.15s, box-shadow 0.15s;
+      text-shadow: 0 0 6px rgba(0,255,102,0.4);
+    }
+    .sb:active { background: rgba(0,255,102,0.22); box-shadow: 0 0 14px rgba(0,255,102,0.35); }
+    #hud {
+      position: fixed; top: 14px; left: 0; width: 100%;
+      text-align: center; z-index: 10;
+      font-family: 'Courier New', monospace; font-size: 11px;
+      color: rgba(0,255,102,0.45); letter-spacing: 0.12em;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">[ OMNIFRAME · ВЫБЕРИ СЕРИЮ ]</div>
+<div id="ui">
+  <button class="sb" data-series="1">01 · ЧАТ-КОНТРОЛЬ</button>
+  <button class="sb" data-series="2">02 · СУВЕРЕНИТЕТ</button>
+  <button class="sb" data-series="3">03 · ПАМЯТЬ ИИ</button>
+  <button class="sb" data-series="4">04 · КОД НА ВЁДРАХ</button>
+  <button class="sb" data-series="5">05 · РЕЛИГИЯ RAM</button>
+  <button class="sb" data-series="6">06 · АНАТОМИЯ ПАКЕТА</button>
+  <button class="sb" data-series="7">07 · ИЗБИР. ЗАКОН</button>
+  <button class="sb" data-series="8">08 · АЛГ. РАБСТВО</button>
+  <button class="sb" data-series="9">09 · ПОСЛЕДНИЙ УЗЕЛ</button>
+</div>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+// ─── USER ───────────────────────────────────────────────────────────────────
+const USER_NICK = (() => {
+  try {
+    const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    return u?.username ? '@' + u.username : 'ЗРИТЕЛЬ';
+  } catch { return 'ЗРИТЕЛЬ'; }
+})();
+
+// ─── BOOT LINES ──────────────────────────────────────────────────────────────
+const BOOT = {
+  1: ['> MTProto v2.0 handshake ... [OK]','> AES-256-IGE cipher init ... [OK]','> DH key exchange 2048-bit ... [OK]','> SURVEILLANCE_FILTER active ... [WARN]','> Packet interception ... [BLOCKED]','> TRANSMISSION #1 ready ...'],
+  2: ['> DC topology: 5 nodes ... [OK]','> Anycast routing loaded ... [OK]','> Single point of failure: NULL ... [OK]','> GeoIP sovereignty check ... [WARN]','> REDUNDANCY_MATRIX active ... [OK]','> TRANSMISSION #2 ready ...'],
+  3: ['> E2E encryption layer ... [OK]','> Forward secrecy: ENABLED ... [OK]','> Draft interception ... [BLOCKED]','> AI surveillance bypass ... [OK]','> Zero-knowledge proof ... [OK]','> TRANSMISSION #3 ready ...'],
+  4: ['> Target: ARMv7 512MB RAM ... [WARN]','> Binary: 4.2MB stripped ... [OK]','> Allocator: jemalloc custom ... [OK]','> Signal: 1 bar ... [WARN]','> Low-memory mode: ENGAGED ... [OK]','> TRANSMISSION #4 ready ...'],
+  5: ['> SQL engine: TERMINATED ... [FAIL]','> Loading in-RAM engine ... [OK]','> Heap allocated: 128GB ... [OK]','> Write latency: 0.3ms ... [OK]','> Throughput: 4.1B ops/sec ... [OK]','> TRANSMISSION #5 ready ...'],
+  6: ['> TCP overhead: 340ms ... [WARN]','> MTProto binary framing ... [OK]','> Payload: zstd-3 compressed ... [OK]','> Redundant headers stripped ... [OK]','> One-shot delivery: ON ... [OK]','> TRANSMISSION #6 ready ...'],
+  7: ['> Regulatory matrix: 47 conflicts ... [WARN]','> Selective enforcement API ... [DETECT]','> Backdoor request ... [REJECTED]','> Open source audit ... [OK]','> Jurisdiction firewall: UP ... [OK]','> TRANSMISSION #7 ready ...'],
+  8: ['> Feed algorithm: DISABLED ... [OK]','> Behavioral fingerprint: PURGED ... [OK]','> Dopamine loop: BLOCKED ... [OK]','> Chronological mode: FORCED ... [OK]','> User autonomy: 100% ... [OK]','> TRANSMISSION #8 ready ...'],
+  9: ['> Centralized nodes: 12 offline ... [WARN]','> Fallback mesh: SCANNING ... [OK]','> Last active node: ODESSA ... [OK]','> Distributed consensus: 3/5 ... [OK]','> Node integrity: HOLDING ... [OK]','> TRANSMISSION #9 ready ...']
+};
+
+// ─── CREDITS LINES ───────────────────────────────────────────────────────────
+const CREDITS = {
+  1: ['ПЕРЕДАЧА ЗАВЕРШЕНА','ДАННЫЕ НЕ СОХРАНЕНЫ','ЭТОТ КАНАЛ НЕ СУЩЕСТВУЕТ'],
+  2: ['ПЕРЕДАЧА ЗАВЕРШЕНА','ОДИН УЗЕЛ ЕЩЁ ДЕРЖИТ','ЭТОТ КАНАЛ НЕ СУЩЕСТВУЕТ'],
+  3: ['ПЕРЕДАЧА ЗАВЕРШЕНА','ЧЕРНОВИК НЕ ПРОЧИТАН','ЭТОТ КАНАЛ НЕ СУЩЕСТВУЕТ'],
+  4: ['ПЕРЕДАЧА ЗАВЕРШЕНА','ПАМЯТЬ ОСВОБОЖДЕНА','ЭТОТ КАНАЛ НЕ СУЩЕСТВУЕТ'],
+  5: ['ПЕРЕДАЧА ЗАВЕРШЕНА','ДАННЫЕ В ПАМЯТИ','ЭТОТ КАНАЛ НЕ СУЩЕСТВУЕТ'],
+  6: ['ПЕРЕДАЧА ЗАВЕРШЕНА','ПАКЕТ ДОСТАВЛЕН','ЭТОТ КАНАЛ НЕ СУЩЕСТВУЕТ'],
+  7: ['ПЕРЕДАЧА ЗАВЕРШЕНА','БЭКДОР НЕ НАЙДЕН','ЭТОТ КАНАЛ НЕ СУЩЕСТВУЕТ'],
+  8: ['ПЕРЕДАЧА ЗАВЕРШЕНА','РЕКОМЕНДАЦИИ ОТКЛЮЧЕНЫ','ЭТОТ КАНАЛ НЕ СУЩЕСТВУЕТ'],
+  9: ['ПЕРЕДАЧА ЗАВЕРШЕНА','ДОСТУП ПОКА ОТКРЫТ','ЭТОТ КАНАЛ НЕ СУЩЕСТВУЕТ']
+};
+
+// ─── PLAYER CLASS ────────────────────────────────────────────────────────────
+class OmniframePlayer {
+  constructor() {
+    this.canvas = document.getElementById('c');
+    this.ctx    = this.canvas.getContext('2d');
+    this.W = 0; this.H = 0; this.dpr = 1;
+
+    // matrix
+    this.MX_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZАБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЫЭЮЯabcdefghijklmnopqrstuvwxyz0123456789<>{}[]|/\\';
+    this.drops = [];
+
+    // state
+    this.phase = 'idle'; // idle|boot|intro|play|credits
+    this.phaseT = 0;     // performance.now() when phase started
+    this.series = null;
+    this.steps  = [];
+    this.curStep = 0;
+    this.seriesDur = 30;
+
+    // effects
+    this.camShake = 0;
+    this.camZoom  = 1;
+    this.glitch   = 0;
+    this.flash    = 0;
+
+    // typewriter state (play phase)
+    this.twLines  = [];   // {full, shown, done, trigger}
+    this.twCur    = 0;    // index of line being typed
+    this.twChar   = 0;    // chars revealed in current line
+    this.twLast   = 0;    // last timestamp a char was added
+    this.twDelay  = 38;   // ms per char
+
+    // boot
+    this.bootLineSeen = -1;
+
+    // particles
+    this.particles = [];
+
+    // audio
+    this.audio = null;
+    this.gain  = null;
+
+    this.raf = null;
+    this._render = this._render.bind(this);
+  }
+
+  // ── INIT ────────────────────────────────────────────────────────────────────
+  init() {
+    this._resize();
+    window.addEventListener('resize', () => this._resize());
+
+    this.canvas.addEventListener('pointerdown', e => {
+      if (this.phase !== 'play') return;
+      const r = this.canvas.getBoundingClientRect();
+      const x = (e.clientX - r.left) * (this.W / r.width);
+      const y = (e.clientY - r.top)  * (this.H / r.height);
+      this._spawnParticles(x, y, 20);
+      this.glitch = 0.7;
+      this._sfxGlitch();
+    });
+
+    this._drawIdle();
+
+    if (window.Telegram?.WebApp) {
+      Telegram.WebApp.ready();
+      Telegram.WebApp.setHeaderColor('#000000');
+      Telegram.WebApp.setBackgroundColor('#000000');
+    }
+  }
+
+  _resize() {
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    this.W = window.innerWidth;
+    this.H = window.innerHeight;
+    this.canvas.width  = this.W * this.dpr;
+    this.canvas.height = this.H * this.dpr;
+    this.canvas.style.width  = this.W + 'px';
+    this.canvas.style.height = this.H + 'px';
+    this.ctx.setTransform(1,0,0,1,0,0);
+    this.ctx.scale(this.dpr, this.dpr);
+    this._initMatrix();
+  }
+
+  _initMatrix() {
+    const cols = Math.floor(this.W / 16) + 2;
+    this.drops = [];
+    for (let i = 0; i < cols; i++) {
+      this.drops.push({
+        x: i * 16,
+        y: Math.random() * this.H,
+        speed: 0.6 + Math.random() * 2.2,
+        char: this._rndChar(),
+        charTimer: 0,
+        charInterval: 80 + Math.random() * 200
+      });
+    }
+  }
+  _rndChar() { return this.MX_CHARS[Math.floor(Math.random() * this.MX_CHARS.length)]; }
+
+  // ── AUDIO ───────────────────────────────────────────────────────────────────
+  _ensureAudio() {
+    if (this.audio) {
+      if (this.audio.state === 'suspended') this.audio.resume();
+      return;
+    }
+    this.audio = new (window.AudioContext || window.webkitAudioContext)();
+    this.gain  = this.audio.createGain();
+    this.gain.gain.value = 0.55;
+    this.gain.connect(this.audio.destination);
+  }
+  _sfxTick() {
+    if (!this.audio) return;
+    const t = this.audio.currentTime;
+    const o = this.audio.createOscillator(), g = this.audio.createGain();
+    o.type = 'square'; o.frequency.value = 750 + Math.random()*300;
+    g.gain.setValueAtTime(0.04, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.025);
+    o.connect(g); g.connect(this.gain); o.start(t); o.stop(t+0.03);
+  }
+  _sfxGlitch() {
+    if (!this.audio) return;
+    const t = this.audio.currentTime;
+    const len = this.audio.sampleRate * 0.07;
+    const buf = this.audio.createBuffer(1, len, this.audio.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random()*2-1)*0.28;
+    const s = this.audio.createBufferSource(), g = this.audio.createGain();
+    s.buffer = buf;
+    g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.07);
+    s.connect(g); g.connect(this.gain); s.start(t);
+  }
+  _sfxImpact() {
+    if (!this.audio) return;
+    const t = this.audio.currentTime;
+    const o = this.audio.createOscillator(), g = this.audio.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(35, t+0.7);
+    g.gain.setValueAtTime(0.8, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.7);
+    o.connect(g); g.connect(this.gain); o.start(t); o.stop(t+0.7);
+  }
+  _sfxFlash() {
+    if (!this.audio) return;
+    const t = this.audio.currentTime;
+    const o = this.audio.createOscillator(), g = this.audio.createGain();
+    o.type = 'sine'; o.frequency.value = 40;
+    g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.5);
+    o.connect(g); g.connect(this.gain); o.start(t); o.stop(t+0.5);
+  }
+  _sfxRise(dur) {
+    if (!this.audio) return;
+    const t = this.audio.currentTime;
+    const o = this.audio.createOscillator(), g = this.audio.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(22, t); o.frequency.exponentialRampToValueAtTime(100, t+dur);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.18, t+dur*0.65);
+    g.gain.linearRampToValueAtTime(0, t+dur);
+    o.connect(g); g.connect(this.gain); o.start(t); o.stop(t+dur);
+  }
+  _sfxCreditsHum() {
+    if (!this.audio) return;
+    const t = this.audio.currentTime;
+    const o = this.audio.createOscillator(), g = this.audio.createGain();
+    o.type = 'sine'; o.frequency.value = 52;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.18, t+0.6);
+    g.gain.linearRampToValueAtTime(0, t+5);
+    o.connect(g); g.connect(this.gain); o.start(t); o.stop(t+5);
+  }
+
+  // ── PARTICLES ────────────────────────────────────────────────────────────────
+  _spawnParticles(x, y, n, color='#00ff66') {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 50 + Math.random() * 180;
+      this.particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s - 60, life: 0.8+Math.random()*1.2, max: 1.2, color });
+    }
+  }
+  _updateParticles(dt) {
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; p.life -= dt;
+      if (p.life <= 0) { this.particles.splice(i, 1); continue; }
+      this.ctx.globalAlpha = Math.max(0, p.life / p.max) * 0.9;
+      this.ctx.fillStyle = p.color;
+      this.ctx.fillRect(p.x, p.y, 3, 3);
+    }
+    this.ctx.globalAlpha = 1;
+  }
+
+  // ── DRAW HELPERS ─────────────────────────────────────────────────────────────
+  _drawMatrix(alpha, ts) {
+    if (alpha <= 0.01) return;
+    const ctx = this.ctx;
+    ctx.font = '14px "Courier New", monospace';
+    ctx.textBaseline = 'top';
+    for (const d of this.drops) {
+      // update char on timer
+      d.charTimer += 16;
+      if (d.charTimer >= d.charInterval) { d.char = this._rndChar(); d.charTimer = 0; }
+      // head bright
+      ctx.globalAlpha = alpha * 0.55;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(d.char, d.x, d.y);
+      // trail
+      ctx.globalAlpha = alpha * 0.09;
+      ctx.fillStyle = '#00ff66';
+      ctx.fillText(this._rndChar(), d.x, d.y - 16);
+      d.y += d.speed;
+      if (d.y > this.H + 16) { d.y = -16; d.char = this._rndChar(); }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  _drawGrid(alpha) {
+    if (alpha <= 0.01) return;
+    const ctx = this.ctx, step = Math.floor(this.H / 22);
+    ctx.save(); ctx.strokeStyle = `rgba(0,255,102,${alpha})`; ctx.lineWidth = 1;
+    for (let y = 0; y < this.H; y += step) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(this.W,y); ctx.stroke(); }
+    for (let x = 0; x < this.W; x += step) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,this.H); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  _drawScanlines() {
+    const ctx = this.ctx;
+    ctx.globalAlpha = 0.035; ctx.fillStyle = '#000';
+    for (let y = 0; y < this.H; y += 4) ctx.fillRect(0, y, this.W, 2);
+    ctx.globalAlpha = 1;
+  }
+
+  _applyGrain(str) {
+    const id = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+    const d = id.data;
+    for (let i = 0; i < d.length; i += 24) { const r=(Math.random()-.5)*str; d[i]+=r; d[i+1]+=r; d[i+2]+=r; }
+    this.ctx.putImageData(id, 0, 0);
+  }
+
+  _wrapText(text, maxPx) {
+    const ctx = this.ctx;
+    const words = text.split(' ');
+    const lines = []; let cur = '';
+    for (const w of words) {
+      const test = cur ? cur+' '+w : w;
+      if (ctx.measureText(test).width > maxPx && cur) { lines.push(cur); cur = w; }
+      else cur = test;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  _ease(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+  _cornerLogo(alpha) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.font = `bold ${Math.floor(this.H*0.014)}px "Courier New", monospace`;
+    ctx.fillStyle = 'rgba(0,255,255,0.75)';
+    ctx.shadowColor = '#0ff'; ctx.shadowBlur = 8;
+    ctx.fillText('OMNIFRAME', this.W - 14, 14);
+    ctx.restore();
+  }
+
+  // ── PHASES ───────────────────────────────────────────────────────────────────
+  _elapsed() { return (performance.now() - this.phaseT) / 1000; }
+
+  _drawIdle() {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, this.W, this.H);
+    this._drawMatrix(0.45, 0);
+    this._drawGrid(0.04);
+    this._drawScanlines();
+    this._cornerLogo(0.6);
+  }
+
+  // BOOT -----------------------------------------------------------------------
+  _renderBoot(t) {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, this.W, this.H);
+    this._drawMatrix(Math.min(1, t/0.8), t);
+    this._drawGrid(0.04);
+    this._drawScanlines();
+
+    const lines = BOOT[this.series.id] || BOOT[1];
+    const STEP = 0.52;
+    const visible = Math.min(lines.length, Math.floor(t / STEP) + 1);
+    const fSize = Math.max(12, Math.floor(this.H * 0.019));
+    const lH = fSize * 2.15;
+    const startY = this.H * 0.34;
+    const padX = this.W * 0.06;
+
+    // line sound trigger
+    const li = Math.min(lines.length-1, Math.floor(t/STEP));
+    if (li !== this.bootLineSeen) { this.bootLineSeen = li; this._sfxTick(); }
+
+    ctx.font = fSize + 'px "Courier New", monospace';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+
+    for (let i = 0; i < visible; i++) {
+      const line = lines[i];
+      const age  = t - i * STEP;
+      let txt    = i < visible-1 ? line : line.slice(0, Math.floor(age * 42));
+      if (i === visible-1 && txt.length < line.length && Math.floor(age*6)%2===0) txt += '▌';
+
+      const tagRx = /\[(OK|WARN|BLOCKED|REJECTED|FAIL|DETECT)\]/.exec(txt);
+      const TAG_COLOR = { OK:'#00ff66', WARN:'#ffaa00', BLOCKED:'#ff4040', REJECTED:'#ff4040', FAIL:'#ff4040', DETECT:'#ff8800' };
+      const dim = i < visible-1 ? 0.38 : 0.78;
+
+      if (tagRx) {
+        const tag = '['+tagRx[1]+']';
+        const before = txt.slice(0, txt.indexOf(tag));
+        ctx.fillStyle = `rgba(0,255,102,${dim})`;
+        ctx.fillText(before, padX, startY + i*lH);
+        const bw = ctx.measureText(before).width;
+        ctx.fillStyle = TAG_COLOR[tagRx[1]];
+        ctx.shadowColor = TAG_COLOR[tagRx[1]]; ctx.shadowBlur = 8;
+        ctx.fillText(tag, padX + bw, startY + i*lH);
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.fillStyle = `rgba(0,255,102,${dim})`;
+        ctx.fillText(txt, padX, startY + i*lH);
+      }
+    }
+
+    // progress bar
+    const prog = Math.min(1, t / 4.5);
+    const bH = Math.max(4, Math.floor(this.H * 0.006));
+    const bY = this.H * 0.83, bX = padX, bW = this.W - padX*2;
+    ctx.fillStyle = 'rgba(0,255,102,0.1)'; ctx.fillRect(bX, bY, bW, bH);
+    ctx.fillStyle = '#00ff66'; ctx.shadowColor = '#00ff66'; ctx.shadowBlur = 10;
+    ctx.fillRect(bX, bY, bW * prog, bH);
+    ctx.shadowBlur = 0;
+    ctx.font = Math.floor(this.H*0.014)+'px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(0,255,102,0.3)';
+    ctx.fillText('// LOADING TRANSMISSION #' + this.series.id + ' ...', bX, bY - fSize*1.5);
+
+    this._applyGrain(5);
+  }
+
+  // INTRO ----------------------------------------------------------------------
+  _renderIntro(t) {
+    const LOGO = 'OMNIFRAME';
+    const DUR  = 3.8;
+    const prog = Math.min(1, t / DUR);
+    const ctx  = this.ctx;
+
+    ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, this.W, this.H);
+    this._drawMatrix(Math.max(0, 1 - prog*1.8), t);
+    this._drawGrid(0.04 + prog*0.02);
+    this._drawScanlines();
+
+    const cX = this.W/2, cY = this.H/2;
+    const lFSize = Math.floor(Math.min(this.W * 0.13, this.H * 0.072));
+
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `900 ${lFSize}px "Courier New", monospace`;
+
+    // glow backdrop
+    const glowR = this.W * 0.5;
+    const grd = ctx.createRadialGradient(cX, cY, 0, cX, cY, glowR);
+    const hue = (t * 45) % 360;
+    grd.addColorStop(0, `hsla(${hue},100%,50%,0.07)`);
+    grd.addColorStop(1, 'transparent');
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, this.W, this.H);
+
+    // characters assemble
+    const charsShown = Math.floor(t * 5.5);
+    for (let i = 0; i < LOGO.length; i++) {
+      const charHue = (hue + i*22) % 360;
+      const charX   = cX + (i - (LOGO.length-1)/2) * lFSize * 0.635;
+      if (i < charsShown) {
+        ctx.fillStyle = `hsl(${charHue},100%,65%)`;
+        ctx.shadowColor = `hsl(${charHue},100%,55%)`;
+        ctx.shadowBlur  = 28 * (0.65 + Math.sin(t*4+i)*0.35);
+        ctx.fillText(LOGO[i], charX, cY - this.H*0.02);
+      } else if (Math.random() > 0.28) {
+        ctx.fillStyle = 'rgba(0,255,102,0.18)';
+        ctx.shadowBlur = 0;
+        ctx.font = `900 ${lFSize}px "Courier New", monospace`;
+        ctx.fillText(this._rndChar(), charX, cY - this.H*0.02);
+      }
+    }
+    ctx.shadowBlur = 0;
+
+    // subtitle typewriter
+    if (t > 1.5) {
+      const subProg = Math.min(1, (t-1.5)*1.8);
+      const sub = `НЕЗАВИСИМЫЙ КАНАЛ  ·  ПЕРЕДАЧА №${this.series.id}`;
+      const shown = Math.floor(sub.length * subProg);
+      ctx.globalAlpha = subProg;
+      ctx.font = Math.floor(this.H*0.018)+'px "Courier New", monospace';
+      ctx.fillStyle = 'rgba(0,255,102,0.75)';
+      ctx.shadowBlur = 0;
+      ctx.fillText(sub.slice(0,shown) + (subProg<1?'▌':''), cX, cY + this.H*0.07);
+      ctx.globalAlpha = 1;
+    }
+
+    // dividers
+    if (t > 2.0) {
+      const a = Math.min(1,(t-2.0)*2.5) * 0.3;
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = '#00ff66'; ctx.lineWidth = 1;
+      const lW = this.W*0.62, lY1=cY-this.H*0.1, lY2=cY+this.H*0.115;
+      ctx.beginPath(); ctx.moveTo(cX-lW/2,lY1); ctx.lineTo(cX+lW/2,lY1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cX-lW/2,lY2); ctx.lineTo(cX+lW/2,lY2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // flash to play
+    if (t > DUR - 0.38) {
+      const fa = Math.min(1,(t-(DUR-0.38))/0.38);
+      ctx.globalAlpha = fa * 0.8;
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,this.W,this.H);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    this._applyGrain(5);
+  }
+
+  // PLAY -----------------------------------------------------------------------
+  _setupTypewriter() {
+    this.twLines = this.steps.map(s => ({
+      full: s.text.replace(/\{\{USER_NAME\}\}/g, USER_NICK).replace(/\n/g,' '),
+      shown: '',
+      done: false,
+      trigger: s.trigger,
+      time: s.time,
+      triggered: false
+    }));
+    this.twCur  = 0;
+    this.twChar = 0;
+    this.twLast = performance.now();
+  }
+
+  _renderPlay(t, ts) {
+    const ctx = this.ctx;
+
+    // camera
+    this.camShake *= 0.84; this.camZoom += (1-this.camZoom)*0.13;
+    ctx.save();
+    ctx.translate(this.W/2, this.H/2);
+    ctx.scale(this.camZoom, this.camZoom);
+    ctx.translate(-this.W/2, -this.H/2);
+    if (this.camShake > 0.5) ctx.translate((Math.random()-.5)*this.camShake,(Math.random()-.5)*this.camShake);
+
+    ctx.fillStyle = '#06080c'; ctx.fillRect(0,0,this.W,this.H);
+    this._drawMatrix(0.52, ts);
+    this._drawGrid(0.045);
+    this._drawScanlines();
+
+    // ── typewriter advance ──
+    const now = performance.now();
+    if (this.twCur < this.twLines.length) {
+      const ln = this.twLines[this.twCur];
+      // wait until this line's time
+      if (t >= ln.time) {
+        if (!ln.done && now - this.twLast >= this.twDelay) {
+          this.twChar++;
+          ln.shown = ln.full.slice(0, this.twChar);
+          this.twLast = now;
+          if (Math.random() > 0.35) this._sfxTick();
+          if (this.twChar >= ln.full.length) {
+            ln.done = true;
+            if (!ln.triggered) {
+              ln.triggered = true;
+              if (ln.trigger === 'GLITCH') { this.glitch = 1; this.camShake = this.H*0.009; this._sfxGlitch(); }
+              if (ln.trigger === 'IMPACT') { this.camShake = this.H*0.013; this.camZoom = 1.06; this._sfxImpact(); this._spawnParticles(this.W/2,this.H/2,22); }
+              if (ln.trigger === 'FLASH')  { this.flash = 1; this._sfxFlash(); }
+            }
+            this.twCur++;
+            this.twChar = 0;
+          }
+        }
+      }
+    }
+
+    // ── draw all revealed lines ──
+    const fSize = Math.max(15, Math.floor(this.H*0.025));
+    ctx.font = `bold ${fSize}px "Courier New", monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const maxW = this.W * 0.84;
+    const lineH = fSize * 1.7;
+
+    // collect wrapped display lines
+    let allLines = [];
+    for (let i = 0; i <= Math.min(this.twCur, this.twLines.length-1); i++) {
+      const src = this.twLines[i];
+      const txt = i === this.twCur ? src.shown : src.full;
+      if (!txt) continue;
+      const wrapped = this._wrapText(txt, maxW);
+      if (i === this.twCur && !src.done) {
+        wrapped[wrapped.length-1] += Math.floor(performance.now()/300)%2===0?'▌':'';
+      }
+      allLines.push(...wrapped);
+    }
+
+    // keep last N lines that fit
+    const maxLines = Math.floor(this.H * 0.5 / lineH);
+    if (allLines.length > maxLines) allLines = allLines.slice(allLines.length - maxLines);
+
+    const totalH = (allLines.length - 1) * lineH;
+    const textY  = this.H/2 - totalH/2 - fSize/2;
+    const boxPad = fSize * 1.3;
+
+    if (allLines.length) {
+      // backdrop
+      ctx.fillStyle = 'rgba(0,0,0,0.52)';
+      ctx.fillRect(this.W/2 - maxW/2 - 18, textY - boxPad, maxW + 36, totalH + fSize + boxPad*2);
+      // accent
+      ctx.fillStyle = 'rgba(0,255,102,0.3)';
+      ctx.fillRect(this.W/2 - maxW/2 - 18, textY - boxPad, maxW+36, 2);
+      ctx.fillRect(this.W/2 - maxW/2 - 18, textY - boxPad, 2, totalH+fSize+boxPad*2);
+
+      for (let i = 0; i < allLines.length; i++) {
+        if (this.glitch > 0.06) {
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          ctx.fillStyle = 'rgba(255,0,60,0.65)'; ctx.fillText(allLines[i], this.W/2 - 8*this.glitch, textY+i*lineH+2);
+          ctx.fillStyle = 'rgba(0,200,255,0.65)'; ctx.fillText(allLines[i], this.W/2 + 8*this.glitch, textY+i*lineH-2);
+          ctx.restore();
+        }
+        ctx.fillStyle = '#00ff66'; ctx.shadowColor='#00ff66'; ctx.shadowBlur=9;
+        ctx.fillText(allLines[i], this.W/2, textY + i*lineH);
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    // step counter
+    ctx.font = Math.floor(this.H*0.015)+'px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(0,255,102,0.28)';
+    ctx.fillText(`[ ${String(Math.min(this.twCur+1,this.steps.length)).padStart(2,'0')} / ${String(this.steps.length).padStart(2,'0')} ]`, this.W/2, this.H*0.87);
+
+    this.glitch *= 0.86;
+
+    // flash
+    if (this.flash > 0.01) { ctx.fillStyle=`rgba(255,255,255,${this.flash*0.65})`; ctx.fillRect(0,0,this.W,this.H); this.flash*=0.74; }
+
+    this._updateParticles(1/60);
+    ctx.restore();
+
+    // corner logo
+    this._cornerLogo(0.55);
+
+    // progress bar
+    const prog = Math.min(1, t / this.seriesDur);
+    ctx.fillStyle='rgba(0,255,102,0.08)'; ctx.fillRect(0,this.H-5,this.W,5);
+    ctx.fillStyle='#00ff66'; ctx.shadowColor='#00ff66'; ctx.shadowBlur=6;
+    ctx.fillRect(0,this.H-5,this.W*prog,5); ctx.shadowBlur=0;
+
+    this._applyGrain(4);
+  }
+
+  // CREDITS --------------------------------------------------------------------
+  _renderCredits(t) {
+    const CDUR = 5.5;
+    const ctx  = this.ctx;
+    ctx.fillStyle = '#05070a'; ctx.fillRect(0,0,this.W,this.H);
+    this._drawGrid(0.03);
+    this._drawScanlines();
+
+    const cX = this.W/2, cY = this.H/2;
+    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+
+    // username
+    if (t > 0.4) {
+      const a = Math.min(1,(t-0.4)*1.8);
+      ctx.globalAlpha = a;
+      ctx.font = `bold ${Math.floor(this.H*0.038)}px "Courier New", monospace`;
+      ctx.fillStyle = '#00ff66'; ctx.shadowColor='#00ff66'; ctx.shadowBlur=22;
+      ctx.fillText(USER_NICK, cX, cY - this.H*0.1);
+      ctx.shadowBlur = 0;
+    }
+    // line 1
+    if (t > 1.1) {
+      const a = Math.min(1,(t-1.1)*1.6);
+      ctx.globalAlpha = a*0.82;
+      ctx.font = Math.floor(this.H*0.022)+'px "Courier New", monospace';
+      ctx.fillStyle='#00ff66'; ctx.fillText('ты досмотрел до конца.', cX, cY-this.H*0.04);
+    }
+    // line 2
+    if (t > 1.9) {
+      const a = Math.min(1,(t-1.9)*1.5);
+      ctx.globalAlpha = a*0.5;
+      ctx.font = Math.floor(this.H*0.018)+'px "Courier New", monospace';
+      ctx.fillStyle='rgba(0,255,102,0.7)';
+      ctx.fillText('не все доходят до конца.', cX, cY+this.H*0.015);
+    }
+    // divider
+    if (t > 2.6) {
+      ctx.globalAlpha = Math.min(1,(t-2.6)*2)*0.22;
+      ctx.strokeStyle='#00ff66'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(cX-this.W*0.28,cY+this.H*0.065); ctx.lineTo(cX+this.W*0.28,cY+this.H*0.065); ctx.stroke();
+    }
+    // glyph stamps — series-specific
+    if (t > 3.1) {
+      const cr = CREDITS[this.series.id] || CREDITS[1];
+      const a  = Math.min(1,(t-3.1)*2);
+      ctx.globalAlpha = a;
+      const fs = Math.floor(this.H*0.017);
+      ctx.font = fs+'px "Courier New", monospace';
+      ctx.fillStyle='rgba(0,255,102,0.3)';
+      ctx.fillText(`[ ${cr[0]} ]`, cX, cY+this.H*0.105);
+      ctx.fillText(`[ ${cr[1]} ]`, cX, cY+this.H*0.135);
+      ctx.fillText(`[ ${cr[2]} ]`, cX, cY+this.H*0.165);
+    }
+    // OMNIFRAME shimmer
+    if (t > 3.9) {
+      const a = Math.min(1,(t-3.9)*2.5);
+      ctx.globalAlpha = a*0.7;
+      const lFSize = Math.floor(Math.min(this.W*0.13, this.H*0.065));
+      ctx.font = `900 ${lFSize}px "Courier New", monospace`;
+      const hue=(t*40)%360;
+      const g=ctx.createLinearGradient(cX-this.W*0.3,0,cX+this.W*0.3,0);
+      g.addColorStop(0,`hsl(${hue},100%,60%)`);
+      g.addColorStop(.5,`hsl(${(hue+90)%360},100%,65%)`);
+      g.addColorStop(1,`hsl(${(hue+180)%360},100%,60%)`);
+      ctx.fillStyle=g; ctx.shadowColor='#00ff66'; ctx.shadowBlur=18;
+      ctx.fillText('OMNIFRAME', cX, cY+this.H*0.28);
+      ctx.shadowBlur=0;
+    }
+    ctx.globalAlpha=1; ctx.restore();
+
+    // fade to black
+    if (t > CDUR-0.65) {
+      const fa=Math.min(1,(t-(CDUR-0.65))/0.65);
+      ctx.fillStyle=`rgba(0,0,0,${fa})`; ctx.fillRect(0,0,this.W,this.H);
+    }
+    this._applyGrain(4);
+    return CDUR;
+  }
+
+  // ── MAIN LOOP ────────────────────────────────────────────────────────────────
+  _render(ts) {
+    const t = (ts - this.phaseT) / 1000;
+
+    if (this.phase === 'boot') {
+      this._renderBoot(t);
+      if (t >= 4.5) { this.phase='intro'; this.phaseT=ts; this._sfxRise(2.6); }
+
+    } else if (this.phase === 'intro') {
+      this._renderIntro(t);
+      if (t >= 3.8) { this.phase='play'; this.phaseT=ts; this._sfxImpact(); this._setupTypewriter(); }
+
+    } else if (this.phase === 'play') {
+      this._renderPlay(t, ts);
+      if (t >= this.seriesDur) { this.phase='credits'; this.phaseT=ts; this._sfxCreditsHum(); }
+
+    } else if (this.phase === 'credits') {
+      const cdur = this._renderCredits(t);
+      if (t >= cdur) {
+        this.phase = 'idle';
+        document.getElementById('hud').innerText = `[ OMNIFRAME · ПЕРЕДАЧА #${this.series.id} ЗАВЕРШЕНА ]`;
+        document.getElementById('ui').style.display = 'flex';
+        this._drawIdle();
+        return;
+      }
+    }
+
+    this.raf = requestAnimationFrame(this._render);
+  }
+
+  // ── PUBLIC: play ────────────────────────────────────────────────────────────
+  play(s) {
+    if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
+    this._ensureAudio();
+
+    this.series    = s;
+    this.steps     = s.timeline;
+    this.seriesDur = s.duration || 30;
+    this.camShake  = 0; this.camZoom = 1;
+    this.glitch    = 0; this.flash   = 0;
+    this.particles = [];
+    this.bootLineSeen = -1;
+
+    document.getElementById('ui').style.display = 'none';
+    document.getElementById('hud').innerText = `[ ЗАГРУЗКА ПЕРЕДАЧИ #${s.id} ]`;
+
+    this.phase = 'boot';
+    this.phaseT = performance.now();
+    this.raf = requestAnimationFrame(this._render);
+  }
+}
+
+// ── BOOTSTRAP ────────────────────────────────────────────────────────────────
+const player = new OmniframePlayer();
+
+window.addEventListener('DOMContentLoaded', () => {
+  player.init();
+
+  document.querySelectorAll('.sb').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.series);
+      if (window.manifestSeries?.[id]) player.play(window.manifestSeries[id]);
+      else alert('Серия ещё на стадии компиляции...');
+    });
+  });
+});
+
+// backward compat with old data.js binding
+window.loadAndPlaySeries = s => player.play(s);
+</script>
+<script src="data.js"></script>
+</body>
+</html>
